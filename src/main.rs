@@ -95,7 +95,6 @@ fn main() {
     let code_gen = code_gen::CodeGen::new(instructions, &input_file_path, &context);
     let module = code_gen.generate_module();
 
-
     Target::initialize_native(&InitializationConfig::default())
         .expect("Failed to initialize native target");
 

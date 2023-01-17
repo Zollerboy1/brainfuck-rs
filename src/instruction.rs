@@ -9,7 +9,7 @@ pub enum Instruction {
     Output,
     Input,
     Loop { instructions: Vec<Instruction> },
-    MoveRightUntilZero {step_size: usize },
+    MoveRightUntilZero { step_size: usize },
     MoveLeftUntilZero { step_size: usize },
     SetToZero,
     WithMultiplier { instructions: Vec<Instruction> },
@@ -34,9 +34,15 @@ impl Debug for Instruction {
                 f.write_fmt(format_args!("MoveLeftUntilZero({})", step_size))
             }
             Self::SetToZero => f.write_str("SetToZero"),
-            Self::WithMultiplier { instructions } => f.write_fmt(format_args!("WithMultiplier({:#?})", instructions)),
-            Self::MoveValueRight { amount } => f.write_fmt(format_args!("MoveValueRight({})", amount)),
-            Self::MoveValueLeft { amount } => f.write_fmt(format_args!("MoveValueLeft({})", amount)),
+            Self::WithMultiplier { instructions } => {
+                f.write_fmt(format_args!("WithMultiplier({:#?})", instructions))
+            }
+            Self::MoveValueRight { amount } => {
+                f.write_fmt(format_args!("MoveValueRight({})", amount))
+            }
+            Self::MoveValueLeft { amount } => {
+                f.write_fmt(format_args!("MoveValueLeft({})", amount))
+            }
         }
     }
 }

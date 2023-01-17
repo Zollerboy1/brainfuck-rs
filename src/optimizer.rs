@@ -18,17 +18,13 @@ where
 
 impl<'a> Optimizer<Parser<'a>> {
     pub fn new(parser: Parser<'a>) -> Self {
-        Self {
-            iter: parser,
-        }
+        Self { iter: parser }
     }
 }
 
 impl Optimizer<IntoIter<Instruction>> {
     fn new(iter: IntoIter<Instruction>) -> Self {
-        Self {
-            iter,
-        }
+        Self { iter }
     }
 }
 
@@ -59,7 +55,8 @@ where
         let mut current_relative_cell = 0isize;
         let mut relative_cell_operations = HashMap::new();
 
-        let instructions = Optimizer::<IntoIter<_>>::new(instructions.into_iter()).collect::<Vec<_>>();
+        let instructions =
+            Optimizer::<IntoIter<_>>::new(instructions.into_iter()).collect::<Vec<_>>();
 
         let unroll_possible = instructions.iter().all(|instruction| {
             match instruction {
@@ -106,18 +103,26 @@ where
                 if relative_cell_operations.is_empty() {
                     return Instruction::SetToZero;
                 } else if relative_cell_operations.len() == 1 {
-                    if let (relative_cell, (true, Wrapping(1))) = relative_cell_operations.iter().next().unwrap() {
+                    if let (relative_cell, (true, Wrapping(1))) =
+                        relative_cell_operations.iter().next().unwrap()
+                    {
                         if relative_cell > &0 {
-                            return Instruction::MoveValueRight { amount: *relative_cell as usize };
+                            return Instruction::MoveValueRight {
+                                amount: *relative_cell as usize,
+                            };
                         } else {
-                            return Instruction::MoveValueLeft { amount: relative_cell.unsigned_abs() };
+                            return Instruction::MoveValueLeft {
+                                amount: relative_cell.unsigned_abs(),
+                            };
                         }
                     }
                 }
 
                 let operation_count = relative_cell_operations.len();
-                let instructions = relative_cell_operations.into_iter().enumerate().flat_map(
-                    |(i, (relative_cell, (increment, Wrapping(amount))))| {
+                let instructions = relative_cell_operations
+                    .into_iter()
+                    .enumerate()
+                    .flat_map(|(i, (relative_cell, (increment, Wrapping(amount))))| {
                         if amount == 0 {
                             Either::Left(iter::empty())
                         } else {
@@ -162,16 +167,14 @@ where
                                     .chain(additional_instructions),
                             )
                         }
-                    },
-                ).collect();
+                    })
+                    .collect();
 
                 return Instruction::WithMultiplier { instructions };
             }
         }
 
-        Instruction::Loop {
-            instructions,
-        }
+        Instruction::Loop { instructions }
     }
 }
 

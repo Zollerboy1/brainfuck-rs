@@ -146,7 +146,10 @@ mod detail {
                         let loop_instructions = (&mut loop_parser).collect::<Result<Vec<_>, _>>();
 
                         (
-                            Some(loop_instructions.map(|instructions| Instruction::Loop { instructions })),
+                            Some(
+                                loop_instructions
+                                    .map(|instructions| Instruction::Loop { instructions }),
+                            ),
                             loop_parser.tokenizer,
                         )
                     })

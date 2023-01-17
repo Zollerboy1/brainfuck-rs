@@ -154,11 +154,16 @@ impl<'a> Functions<'a> {
             module,
             types,
         );
-        let input_f = Self::declare_void_function(&[
+        let input_f = Self::declare_void_function(
+            &[
                 types.char_ptr_t.into(),
                 types.size_t_t.into(),
                 types.char_ptr_ptr_t.into(),
-            ], "input", module, types);
+            ],
+            "input",
+            module,
+            types,
+        );
         let move_right_until_zero_f = Self::declare_void_function(
             &[
                 types.char_ptr_ptr_t.into(),
@@ -457,25 +462,17 @@ impl<'a> CodeGen<'a> {
                         .build_load(self.multiplier_alloca, "load")
                         .into_int_value();
 
-                    amount = self.builder.build_int_mul(
-                        amount,
-                        multiplier,
-                        "multipliedAmount",
-                    );
+                    amount = self
+                        .builder
+                        .build_int_mul(amount, multiplier, "multipliedAmount");
                 }
 
                 let current_cell_value = if let Instruction::Increment { amount: _ } = instruction {
-                    self.builder.build_int_add(
-                        current_cell_value,
-                        amount,
-                        "incrementedCurrentCell",
-                    )
+                    self.builder
+                        .build_int_add(current_cell_value, amount, "incrementedCurrentCell")
                 } else {
-                    self.builder.build_int_sub(
-                        current_cell_value,
-                        amount,
-                        "decrementedCurrentCell",
-                    )
+                    self.builder
+                        .build_int_sub(current_cell_value, amount, "decrementedCurrentCell")
                 };
 
                 self.builder
@@ -591,7 +588,10 @@ impl<'a> CodeGen<'a> {
                         self.cells_alloca.into(),
                         self.cells_length_alloca.into(),
                         self.current_cell_alloca.into(),
-                        self.types.size_t_t.const_int(*step_size as u64, false).into(),
+                        self.types
+                            .size_t_t
+                            .const_int(*step_size as u64, false)
+                            .into(),
                     ],
                     "",
                 );
@@ -606,7 +606,10 @@ impl<'a> CodeGen<'a> {
                         &[
                             cells.into(),
                             self.current_cell_alloca.into(),
-                            self.types.size_t_t.const_int(*step_size as u64, false).into(),
+                            self.types
+                                .size_t_t
+                                .const_int(*step_size as u64, false)
+                                .into(),
                         ],
                         "returnWithError",
                     )
@@ -646,9 +649,9 @@ impl<'a> CodeGen<'a> {
             }
             Instruction::WithMultiplier { instructions } => {
                 let cells = self
-                .builder
-                .build_load(self.cells_alloca, "load")
-                .into_pointer_value();
+                    .builder
+                    .build_load(self.cells_alloca, "load")
+                    .into_pointer_value();
 
                 let current_cell = self
                     .builder
@@ -680,7 +683,11 @@ impl<'a> CodeGen<'a> {
                     .context
                     .prepend_basic_block(self.main_error_block, "continue");
 
-                self.builder.build_conditional_branch(multiplier_is_zero, continue_block, with_multiplier_block);
+                self.builder.build_conditional_branch(
+                    multiplier_is_zero,
+                    continue_block,
+                    with_multiplier_block,
+                );
 
                 self.builder.position_at_end(with_multiplier_block);
 
@@ -689,9 +696,9 @@ impl<'a> CodeGen<'a> {
                 self.generate_instructions(instructions, true);
 
                 let cells = self
-                .builder
-                .build_load(self.cells_alloca, "load")
-                .into_pointer_value();
+                    .builder
+                    .build_load(self.cells_alloca, "load")
+                    .into_pointer_value();
 
                 let current_cell = self
                     .builder
@@ -711,9 +718,7 @@ impl<'a> CodeGen<'a> {
                 self.builder.position_at_end(continue_block);
             }
             Instruction::MoveValueRight { amount } => {
-                let current_cell = self
-                    .builder
-                    .build_load(self.current_cell_alloca, "load");
+                let current_cell = self.builder.build_load(self.current_cell_alloca, "load");
 
                 self.builder.build_call(
                     self.functions.move_value_right_f,
@@ -729,23 +734,23 @@ impl<'a> CodeGen<'a> {
             Instruction::MoveValueLeft { amount } => {
                 let cells = self.builder.build_load(self.cells_alloca, "load");
 
-                let current_cell = self
-                    .builder
-                    .build_load(self.current_cell_alloca, "load");
+                let current_cell = self.builder.build_load(self.current_cell_alloca, "load");
 
-                let return_with_error = self.builder.build_call(
-                    self.functions.move_value_left_f,
-                    &[
-                        cells.into(),
-                        current_cell.into(),
-                        self.types.size_t_t.const_int(*amount as u64, false).into(),
-                    ],
-                    "",
-                )
-                .try_as_basic_value()
-                .left()
-                .unwrap()
-                .into_int_value();
+                let return_with_error = self
+                    .builder
+                    .build_call(
+                        self.functions.move_value_left_f,
+                        &[
+                            cells.into(),
+                            current_cell.into(),
+                            self.types.size_t_t.const_int(*amount as u64, false).into(),
+                        ],
+                        "",
+                    )
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap()
+                    .into_int_value();
 
                 let continue_block = self
                     .context
