@@ -115,9 +115,11 @@ struct Functions<'a> {
     putchar_f: FunctionValue<'a>,
     fflush_f: FunctionValue<'a>,
     move_right_f: FunctionValue<'a>,
+    input_f: FunctionValue<'a>,
     move_right_until_zero_f: FunctionValue<'a>,
     move_left_until_zero_f: FunctionValue<'a>,
-    input_f: FunctionValue<'a>,
+    move_value_right_f: FunctionValue<'a>,
+    move_value_left_f: FunctionValue<'a>,
     main_f: FunctionValue<'a>,
 }
 
@@ -152,6 +154,11 @@ impl<'a> Functions<'a> {
             module,
             types,
         );
+        let input_f = Self::declare_void_function(&[
+                types.char_ptr_t.into(),
+                types.size_t_t.into(),
+                types.char_ptr_ptr_t.into(),
+            ], "input", module, types);
         let move_right_until_zero_f = Self::declare_void_function(
             &[
                 types.char_ptr_ptr_t.into(),
@@ -173,18 +180,29 @@ impl<'a> Functions<'a> {
             "moveLeftUntilZero",
             module,
         );
-        let input_f = {
-            let param_types = &[
+
+        let move_value_right_f = Self::declare_void_function(
+            &[
+                types.char_ptr_ptr_t.into(),
+                types.size_t_ptr_t.into(),
+                types.size_t_t.into(),
+                types.size_t_t.into(),
+            ],
+            "moveValueRight",
+            module,
+            types,
+        );
+
+        let move_value_left_f = Self::declare_function(
+            &types.bool_t,
+            &[
                 types.char_ptr_t.into(),
                 types.size_t_t.into(),
-                types.char_ptr_ptr_t.into(),
-                types.size_t_ptr_t.into(),
-                types.size_t_ptr_t.into(),
-                types.char_ptr_ptr_t.into(),
-            ];
-
-            Self::declare_void_function(param_types, "input", module, types)
-        };
+                types.size_t_t.into(),
+            ],
+            "moveValueLeft",
+            module,
+        );
 
         let main_f = Self::declare_function(&types.int_t, &[], "main", module);
 
@@ -195,9 +213,11 @@ impl<'a> Functions<'a> {
             putchar_f,
             fflush_f,
             move_right_f,
+            input_f,
             move_right_until_zero_f,
             move_left_until_zero_f,
-            input_f,
+            move_value_right_f,
+            move_value_left_f,
             main_f,
         }
     }
@@ -239,9 +259,7 @@ pub struct CodeGen<'a> {
     cells_length_alloca: PointerValue<'a>,
     current_cell_alloca: PointerValue<'a>,
     input_buffer_alloca: PointerValue<'a>,
-    length_alloca: PointerValue<'a>,
-    buffer_length_alloca: PointerValue<'a>,
-    input_position_alloca: PointerValue<'a>,
+    multiplier_alloca: PointerValue<'a>,
 }
 
 impl<'a> CodeGen<'a> {
@@ -263,9 +281,7 @@ impl<'a> CodeGen<'a> {
         let cells_length_alloca = builder.build_alloca(types.size_t_t, "cellsLength");
         let current_cell_alloca = builder.build_alloca(types.size_t_t, "currentCell");
         let input_buffer_alloca = builder.build_alloca(types.char_ptr_t, "inputBuffer");
-        let length_alloca = builder.build_alloca(types.size_t_t, "length");
-        let buffer_length_alloca = builder.build_alloca(types.size_t_t, "bufferLength");
-        let input_position_alloca = builder.build_alloca(types.char_ptr_t, "inputPosition");
+        let multiplier_alloca = builder.build_alloca(types.char_t, "multiplier");
 
         Self {
             instructions,
@@ -280,9 +296,7 @@ impl<'a> CodeGen<'a> {
             cells_length_alloca,
             current_cell_alloca,
             input_buffer_alloca,
-            length_alloca,
-            buffer_length_alloca,
-            input_position_alloca,
+            multiplier_alloca,
         }
     }
 
@@ -307,16 +321,8 @@ impl<'a> CodeGen<'a> {
             .build_store(self.current_cell_alloca, self.types.size_t_t.const_zero());
         self.builder
             .build_store(self.input_buffer_alloca, self.types.char_ptr_t.const_null());
-        self.builder
-            .build_store(self.length_alloca, self.types.size_t_t.const_zero());
-        self.builder
-            .build_store(self.buffer_length_alloca, self.types.size_t_t.const_zero());
-        self.builder.build_store(
-            self.input_position_alloca,
-            self.types.char_ptr_t.const_null(),
-        );
 
-        self.generate_instructions();
+        self.generate_instructions(&self.instructions);
 
         let return_block = self
             .context
@@ -370,15 +376,16 @@ impl<'a> CodeGen<'a> {
         &self.module
     }
 
-    fn generate_instructions(&self) {
-        for instruction in self.instructions.iter() {
-            self.generate_instruction(instruction);
+    fn generate_instructions(&self, instructions: &[Instruction]) {
+        let mut has_multiplier = false;
+        for instruction in instructions.iter() {
+            self.generate_instruction(instruction, &mut has_multiplier);
         }
     }
 
-    fn generate_instruction(&self, instruction: &Instruction) {
+    fn generate_instruction(&self, instruction: &Instruction, has_multiplier: &mut bool) {
         match instruction {
-            Instruction::MoveRight(amount) => {
+            Instruction::MoveRight { amount } => {
                 self.builder.build_call(
                     self.functions.move_right_f,
                     &[
@@ -390,7 +397,7 @@ impl<'a> CodeGen<'a> {
                     "",
                 );
             }
-            Instruction::MoveLeft(amount) => {
+            Instruction::MoveLeft { amount } => {
                 let current_cell = self
                     .builder
                     .build_load(self.current_cell_alloca, "load")
@@ -423,7 +430,7 @@ impl<'a> CodeGen<'a> {
                 self.builder
                     .build_store(self.current_cell_alloca, current_cell);
             }
-            Instruction::Increment(amount) | Instruction::Decrement(amount) => {
+            Instruction::Increment { amount } | Instruction::Decrement { amount } => {
                 let cells = self
                     .builder
                     .build_load(self.cells_alloca, "load")
@@ -443,16 +450,31 @@ impl<'a> CodeGen<'a> {
                     .build_load(current_cell_ptr, "load")
                     .into_int_value();
 
-                let current_cell_value = if let Instruction::Increment(_) = instruction {
+                let mut amount = self.types.char_t.const_int(*amount as u64, false);
+
+                if *has_multiplier {
+                    let multiplier = self
+                        .builder
+                        .build_load(self.multiplier_alloca, "load")
+                        .into_int_value();
+
+                    amount = self.builder.build_int_mul(
+                        amount,
+                        multiplier,
+                        "multipliedAmount",
+                    );
+                }
+
+                let current_cell_value = if let Instruction::Increment { amount: _ } = instruction {
                     self.builder.build_int_add(
                         current_cell_value,
-                        self.types.char_t.const_int(*amount as u64, false),
+                        amount,
                         "incrementedCurrentCell",
                     )
                 } else {
                     self.builder.build_int_sub(
                         current_cell_value,
-                        self.types.char_t.const_int(*amount as u64, false),
+                        amount,
                         "decrementedCurrentCell",
                     )
                 };
@@ -510,13 +532,10 @@ impl<'a> CodeGen<'a> {
                     cells.into(),
                     current_cell.into(),
                     self.input_buffer_alloca.into(),
-                    self.length_alloca.into(),
-                    self.buffer_length_alloca.into(),
-                    self.input_position_alloca.into(),
                 ];
                 self.builder.build_call(self.functions.input_f, args, "");
             }
-            Instruction::Loop(instructions) => {
+            Instruction::Loop { instructions } => {
                 let loop_block = self
                     .context
                     .prepend_basic_block(self.main_error_block, "loop");
@@ -561,26 +580,24 @@ impl<'a> CodeGen<'a> {
 
                 self.builder.position_at_end(then_block);
 
-                for instruction in instructions {
-                    self.generate_instruction(instruction);
-                }
+                self.generate_instructions(instructions);
 
                 self.builder.build_unconditional_branch(loop_block);
                 self.builder.position_at_end(merge_block);
             }
-            Instruction::MoveRightUntilZero(amount) => {
+            Instruction::MoveRightUntilZero { step_size } => {
                 self.builder.build_call(
                     self.functions.move_right_until_zero_f,
                     &[
                         self.cells_alloca.into(),
                         self.cells_length_alloca.into(),
                         self.current_cell_alloca.into(),
-                        self.types.size_t_t.const_int(*amount as u64, false).into(),
+                        self.types.size_t_t.const_int(*step_size as u64, false).into(),
                     ],
                     "",
                 );
             }
-            Instruction::MoveLeftUntilZero(amount) => {
+            Instruction::MoveLeftUntilZero { step_size } => {
                 let cells = self.builder.build_load(self.cells_alloca, "load");
 
                 let return_with_error = self
@@ -590,7 +607,7 @@ impl<'a> CodeGen<'a> {
                         &[
                             cells.into(),
                             self.current_cell_alloca.into(),
-                            self.types.size_t_t.const_int(*amount as u64, false).into(),
+                            self.types.size_t_t.const_int(*step_size as u64, false).into(),
                         ],
                         "returnWithError",
                     )
@@ -627,6 +644,100 @@ impl<'a> CodeGen<'a> {
 
                 self.builder
                     .build_store(current_cell_ptr, self.types.char_t.const_zero());
+            }
+            Instruction::SetMultiplier => {
+                let cells = self
+                    .builder
+                    .build_load(self.cells_alloca, "load")
+                    .into_pointer_value();
+
+                let current_cell = self
+                    .builder
+                    .build_load(self.current_cell_alloca, "load")
+                    .into_int_value();
+
+                let current_cell_ptr = unsafe {
+                    self.builder
+                        .build_gep(cells, &[current_cell], "currentCellPtr")
+                };
+
+                let multiplier = self
+                    .builder
+                    .build_load(current_cell_ptr, "multiplier")
+                    .into_int_value();
+
+                self.builder.build_store(self.multiplier_alloca, multiplier);
+
+                *has_multiplier = true;
+            }
+            Instruction::ResetMultiplierAndSetToZero => {
+                let cells = self
+                    .builder
+                    .build_load(self.cells_alloca, "load")
+                    .into_pointer_value();
+
+                let current_cell = self
+                    .builder
+                    .build_load(self.current_cell_alloca, "load")
+                    .into_int_value();
+
+                let current_cell_ptr = unsafe {
+                    self.builder
+                        .build_gep(cells, &[current_cell], "currentCellPtr")
+                };
+
+                self.builder
+                    .build_store(current_cell_ptr, self.types.char_t.const_zero());
+
+                *has_multiplier = false;
+            }
+            Instruction::MoveValueRight { amount } => {
+                let current_cell = self
+                    .builder
+                    .build_load(self.current_cell_alloca, "load");
+
+                self.builder.build_call(
+                    self.functions.move_value_right_f,
+                    &[
+                        self.cells_alloca.into(),
+                        self.cells_length_alloca.into(),
+                        current_cell.into(),
+                        self.types.size_t_t.const_int(*amount as u64, false).into(),
+                    ],
+                    "",
+                );
+            }
+            Instruction::MoveValueLeft { amount } => {
+                let cells = self.builder.build_load(self.cells_alloca, "load");
+
+                let current_cell = self
+                    .builder
+                    .build_load(self.current_cell_alloca, "load");
+
+                let return_with_error = self.builder.build_call(
+                    self.functions.move_value_left_f,
+                    &[
+                        cells.into(),
+                        current_cell.into(),
+                        self.types.size_t_t.const_int(*amount as u64, false).into(),
+                    ],
+                    "",
+                )
+                .try_as_basic_value()
+                .left()
+                .unwrap()
+                .into_int_value();
+
+                let continue_block = self
+                    .context
+                    .prepend_basic_block(self.main_error_block, "continue");
+
+                self.builder.build_conditional_branch(
+                    return_with_error,
+                    self.main_error_block,
+                    continue_block,
+                );
+                self.builder.position_at_end(continue_block);
             }
         }
     }

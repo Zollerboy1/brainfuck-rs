@@ -15,18 +15,18 @@ impl Instruction {
             TokenType::MoveLeft
         };
 
-        let mut count = 1;
+        let mut amount = 1;
         while tokenizer
             .next_if(|token| token.token_type == expected)
             .is_some()
         {
-            count += 1;
+            amount += 1;
         }
 
         if right {
-            Self::MoveRight(count)
+            Self::MoveRight { amount }
         } else {
-            Self::MoveLeft(count)
+            Self::MoveLeft { amount }
         }
     }
 
@@ -37,18 +37,20 @@ impl Instruction {
             TokenType::Decrement
         };
 
-        let mut count = Wrapping(1u8);
+        let mut amount = Wrapping(1u8);
         while tokenizer
             .next_if(|token| token.token_type == expected)
             .is_some()
         {
-            count += 1;
+            amount += 1;
         }
 
+        let amount = amount.0;
+
         if increment {
-            Self::Increment(count.0)
+            Self::Increment { amount }
         } else {
-            Self::Decrement(count.0)
+            Self::Decrement { amount }
         }
     }
 }
@@ -144,7 +146,7 @@ mod detail {
                         let loop_instructions = (&mut loop_parser).collect::<Result<Vec<_>, _>>();
 
                         (
-                            Some(loop_instructions.map(Instruction::Loop)),
+                            Some(loop_instructions.map(|instructions| Instruction::Loop { instructions })),
                             loop_parser.tokenizer,
                         )
                     })

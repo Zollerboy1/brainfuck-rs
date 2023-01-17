@@ -2,35 +2,43 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum Instruction {
-    MoveRight(usize),
-    MoveLeft(usize),
-    Increment(u8),
-    Decrement(u8),
+    MoveRight { amount: usize },
+    MoveLeft { amount: usize },
+    Increment { amount: u8 },
+    Decrement { amount: u8 },
     Output,
     Input,
-    Loop(Vec<Instruction>),
-    MoveRightUntilZero(usize),
-    MoveLeftUntilZero(usize),
+    Loop { instructions: Vec<Instruction> },
+    MoveRightUntilZero {step_size: usize },
+    MoveLeftUntilZero { step_size: usize },
     SetToZero,
+    SetMultiplier,
+    ResetMultiplierAndSetToZero,
+    MoveValueRight { amount: usize },
+    MoveValueLeft { amount: usize },
 }
 
 impl Debug for Instruction {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
-            Self::MoveRight(amount) => f.write_fmt(format_args!("MoveRight({})", amount)),
-            Self::MoveLeft(amount) => f.write_fmt(format_args!("MoveLeft({})", amount)),
-            Self::Increment(amount) => f.write_fmt(format_args!("Increment({})", amount)),
-            Self::Decrement(amount) => f.write_fmt(format_args!("Decrement({})", amount)),
+            Self::MoveRight { amount } => f.write_fmt(format_args!("MoveRight({})", amount)),
+            Self::MoveLeft { amount } => f.write_fmt(format_args!("MoveLeft({})", amount)),
+            Self::Increment { amount } => f.write_fmt(format_args!("Increment({})", amount)),
+            Self::Decrement { amount } => f.write_fmt(format_args!("Decrement({})", amount)),
             Self::Output => f.write_str("Output"),
             Self::Input => f.write_str("Input"),
-            Self::Loop(instructions) => f.write_fmt(format_args!("Loop({:#?})", instructions)),
-            Self::MoveRightUntilZero(amount) => {
-                f.write_fmt(format_args!("MoveRightUntilZero({})", amount))
+            Self::Loop { instructions } => f.write_fmt(format_args!("Loop({:#?})", instructions)),
+            Self::MoveRightUntilZero { step_size } => {
+                f.write_fmt(format_args!("MoveRightUntilZero({})", step_size))
             }
-            Self::MoveLeftUntilZero(amount) => {
-                f.write_fmt(format_args!("MoveLeftUntilZero({})", amount))
+            Self::MoveLeftUntilZero { step_size } => {
+                f.write_fmt(format_args!("MoveLeftUntilZero({})", step_size))
             }
             Self::SetToZero => f.write_str("SetToZero"),
+            Self::SetMultiplier => f.write_str("SetMultiplier"),
+            Self::ResetMultiplierAndSetToZero => f.write_str("ResetMultiplierAndSetToZero"),
+            Self::MoveValueRight { amount } => f.write_fmt(format_args!("MoveValueRight({})", amount)),
+            Self::MoveValueLeft { amount } => f.write_fmt(format_args!("MoveValueLeft({})", amount)),
         }
     }
 }
