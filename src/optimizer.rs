@@ -1,5 +1,5 @@
 use std::{
-    collections::{hash_map::Entry, HashMap, VecDeque},
+    collections::{hash_map::Entry, HashMap},
     iter,
     num::Wrapping,
     vec::IntoIter,
@@ -14,14 +14,12 @@ where
     Iter: Iterator<Item = Instruction>,
 {
     iter: Iter,
-    queue: VecDeque<Instruction>,
 }
 
 impl<'a> Optimizer<Parser<'a>> {
     pub fn new(parser: Parser<'a>) -> Self {
         Self {
             iter: parser,
-            queue: VecDeque::new(),
         }
     }
 }
@@ -30,7 +28,6 @@ impl Optimizer<IntoIter<Instruction>> {
     fn new(iter: IntoIter<Instruction>) -> Self {
         Self {
             iter,
-            queue: VecDeque::new(),
         }
     }
 }
@@ -39,13 +36,6 @@ impl<Iter> Optimizer<Iter>
 where
     Iter: Iterator<Item = Instruction>,
 {
-    fn iter_next(&mut self) -> Option<Instruction> {
-        self.iter.next().map(|instruction| match instruction {
-            Instruction::Loop { instructions } => self.optimize_loop(instructions),
-            _ => instruction,
-        })
-    }
-
     fn optimize_loop(&mut self, instructions: Vec<Instruction>) -> Instruction {
         if instructions.len() == 1 {
             match instructions[0] {
@@ -68,6 +58,8 @@ where
     fn unroll_loop(&mut self, instructions: Vec<Instruction>) -> Instruction {
         let mut current_relative_cell = 0isize;
         let mut relative_cell_operations = HashMap::new();
+
+        let instructions = Optimizer::<IntoIter<_>>::new(instructions.into_iter()).collect::<Vec<_>>();
 
         let unroll_possible = instructions.iter().all(|instruction| {
             match instruction {
@@ -159,13 +151,7 @@ where
                                     }
                                 };
 
-                                Either::Left(
-                                    [
-                                        last_movement_instruction,
-                                        Instruction::ResetMultiplierAndSetToZero,
-                                    ]
-                                    .into_iter(),
-                                )
+                                Either::Left(iter::once(last_movement_instruction))
                             } else {
                                 Either::Right(iter::empty())
                             };
@@ -177,16 +163,14 @@ where
                             )
                         }
                     },
-                );
+                ).collect();
 
-                self.queue.extend(instructions);
-
-                return Instruction::SetMultiplier;
+                return Instruction::WithMultiplier { instructions };
             }
         }
 
         Instruction::Loop {
-            instructions: Optimizer::<IntoIter<_>>::new(instructions.into_iter()).collect(),
+            instructions,
         }
     }
 }
@@ -198,6 +182,9 @@ where
     type Item = Instruction;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.queue.pop_front().or_else(|| self.iter_next())
+        self.iter.next().map(|instruction| match instruction {
+            Instruction::Loop { instructions } => self.optimize_loop(instructions),
+            _ => instruction,
+        })
     }
 }

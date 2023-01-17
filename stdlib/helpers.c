@@ -74,6 +74,8 @@ extern void moveValueRight(char ** cellsPtr, size_t * cellsCountPtr, size_t curr
     char * cells = *cellsPtr;
     char value = cells[currentCell];
 
+    if (value == 0) return;
+
     size_t destinationCell = currentCell;
     moveRight(cellsPtr, cellsCountPtr, &destinationCell, amount);
 
@@ -84,6 +86,8 @@ extern void moveValueRight(char ** cellsPtr, size_t * cellsCountPtr, size_t curr
 
 extern bool moveValueLeft(char * cells, size_t currentCell, size_t amount) {
     char value = cells[currentCell];
+
+    if (value == 0) return false;
 
     if (currentCell < amount) return true;
 

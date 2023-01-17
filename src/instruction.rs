@@ -12,8 +12,7 @@ pub enum Instruction {
     MoveRightUntilZero {step_size: usize },
     MoveLeftUntilZero { step_size: usize },
     SetToZero,
-    SetMultiplier,
-    ResetMultiplierAndSetToZero,
+    WithMultiplier { instructions: Vec<Instruction> },
     MoveValueRight { amount: usize },
     MoveValueLeft { amount: usize },
 }
@@ -35,8 +34,7 @@ impl Debug for Instruction {
                 f.write_fmt(format_args!("MoveLeftUntilZero({})", step_size))
             }
             Self::SetToZero => f.write_str("SetToZero"),
-            Self::SetMultiplier => f.write_str("SetMultiplier"),
-            Self::ResetMultiplierAndSetToZero => f.write_str("ResetMultiplierAndSetToZero"),
+            Self::WithMultiplier { instructions } => f.write_fmt(format_args!("WithMultiplier({:#?})", instructions)),
             Self::MoveValueRight { amount } => f.write_fmt(format_args!("MoveValueRight({})", amount)),
             Self::MoveValueLeft { amount } => f.write_fmt(format_args!("MoveValueLeft({})", amount)),
         }

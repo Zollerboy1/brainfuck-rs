@@ -322,7 +322,7 @@ impl<'a> CodeGen<'a> {
         self.builder
             .build_store(self.input_buffer_alloca, self.types.char_ptr_t.const_null());
 
-        self.generate_instructions(&self.instructions);
+        self.generate_instructions(&self.instructions, false);
 
         let return_block = self
             .context
@@ -376,14 +376,13 @@ impl<'a> CodeGen<'a> {
         &self.module
     }
 
-    fn generate_instructions(&self, instructions: &[Instruction]) {
-        let mut has_multiplier = false;
+    fn generate_instructions(&self, instructions: &[Instruction], has_multiplier: bool) {
         for instruction in instructions.iter() {
-            self.generate_instruction(instruction, &mut has_multiplier);
+            self.generate_instruction(instruction, has_multiplier);
         }
     }
 
-    fn generate_instruction(&self, instruction: &Instruction, has_multiplier: &mut bool) {
+    fn generate_instruction(&self, instruction: &Instruction, has_multiplier: bool) {
         match instruction {
             Instruction::MoveRight { amount } => {
                 self.builder.build_call(
@@ -452,7 +451,7 @@ impl<'a> CodeGen<'a> {
 
                 let mut amount = self.types.char_t.const_int(*amount as u64, false);
 
-                if *has_multiplier {
+                if has_multiplier {
                     let multiplier = self
                         .builder
                         .build_load(self.multiplier_alloca, "load")
@@ -580,7 +579,7 @@ impl<'a> CodeGen<'a> {
 
                 self.builder.position_at_end(then_block);
 
-                self.generate_instructions(instructions);
+                self.generate_instructions(instructions, false);
 
                 self.builder.build_unconditional_branch(loop_block);
                 self.builder.position_at_end(merge_block);
@@ -645,11 +644,11 @@ impl<'a> CodeGen<'a> {
                 self.builder
                     .build_store(current_cell_ptr, self.types.char_t.const_zero());
             }
-            Instruction::SetMultiplier => {
+            Instruction::WithMultiplier { instructions } => {
                 let cells = self
-                    .builder
-                    .build_load(self.cells_alloca, "load")
-                    .into_pointer_value();
+                .builder
+                .build_load(self.cells_alloca, "load")
+                .into_pointer_value();
 
                 let current_cell = self
                     .builder
@@ -666,15 +665,33 @@ impl<'a> CodeGen<'a> {
                     .build_load(current_cell_ptr, "multiplier")
                     .into_int_value();
 
+                let multiplier_is_zero = self.builder.build_int_compare(
+                    IntPredicate::EQ,
+                    multiplier,
+                    self.types.char_t.const_zero(),
+                    "multiplierIsZero",
+                );
+
+                let with_multiplier_block = self
+                    .context
+                    .prepend_basic_block(self.main_error_block, "withMultiplier");
+
+                let continue_block = self
+                    .context
+                    .prepend_basic_block(self.main_error_block, "continue");
+
+                self.builder.build_conditional_branch(multiplier_is_zero, continue_block, with_multiplier_block);
+
+                self.builder.position_at_end(with_multiplier_block);
+
                 self.builder.build_store(self.multiplier_alloca, multiplier);
 
-                *has_multiplier = true;
-            }
-            Instruction::ResetMultiplierAndSetToZero => {
+                self.generate_instructions(instructions, true);
+
                 let cells = self
-                    .builder
-                    .build_load(self.cells_alloca, "load")
-                    .into_pointer_value();
+                .builder
+                .build_load(self.cells_alloca, "load")
+                .into_pointer_value();
 
                 let current_cell = self
                     .builder
@@ -689,7 +706,9 @@ impl<'a> CodeGen<'a> {
                 self.builder
                     .build_store(current_cell_ptr, self.types.char_t.const_zero());
 
-                *has_multiplier = false;
+                self.builder.build_unconditional_branch(continue_block);
+
+                self.builder.position_at_end(continue_block);
             }
             Instruction::MoveValueRight { amount } => {
                 let current_cell = self
